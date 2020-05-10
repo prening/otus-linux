@@ -8,25 +8,29 @@ MACHINES = {
 	:disks => {
 		:sata1 => {
 			:dfile => './sata1.vdi',
-			:size => 250,
+			:size => 1500,
 			:port => 1
 		},
 		:sata2 => {
                         :dfile => './sata2.vdi',
-                        :size => 250, # Megabytes
+                        :size => 1500, # Megabytes
 			:port => 2
 		},
                 :sata3 => {
                         :dfile => './sata3.vdi',
-                        :size => 250,
+                        :size => 1500,
                         :port => 3
                 },
                 :sata4 => {
                         :dfile => './sata4.vdi',
-                        :size => 250, # Megabytes
+                        :size => 1500, # Megabytes
                         :port => 4
+                },
+				:sata5 => {
+                        :dfile => './sata5.vdi',
+                        :size => 1500, # Megabytes
+                        :port => 5
                 }
-
 	}
 
 		
@@ -66,7 +70,23 @@ Vagrant.configure("2") do |config|
  	  box.vm.provision "shell", inline: <<-SHELL
 	      mkdir -p ~root/.ssh
               cp ~vagrant/.ssh/auth* ~root/.ssh
-	      yum install -y mdadm smartmontools hdparm gdisk
+	      yum install -y mdadm smartmontools hdparm gdisk mc
+		  mdadm --zero-superblock --force /dev/sd{b,c,d,e,f}
+          mdadm --create --verbose --force /dev/md0 -l 5 -n 5 /dev/sd{b,c,d,e,f}
+          mkdir /etc/mdadm
+          echo "DEVICE partitions" > /etc/mdadm/mdadm.conf
+          mdadm --detail --scan --verbose | awk '/ARRAY/ {print}' >> /etc/mdadm/mdadm.conf
+          parted -s /dev/md0 mklabel gpt
+          parted /dev/md0 mkpart primary ext4 0% 20%
+          parted /dev/md0 mkpart primary ext4 20% 40%
+          parted /dev/md0 mkpart primary ext4 40% 60%
+          parted /dev/md0 mkpart primary ext4 60% 80%
+          parted /dev/md0 mkpart primary ext4 80% 100%
+          for i in $(seq 1 5); do mkfs.ext4 /dev/md0p$i; done
+          mkdir -p /raid/part{1,2,3,4,5}
+          for i in $(seq 1 5); do mount /dev/md0p$i /raid/part$i; done
+          echo "#RAID DEVICE" >> /etc/fstab
+          for i in $(seq 1 5); do echo `sudo blkid /dev/md0p$i | awk '{print $2}'` /u0$i ext4 defaults 0 0 >> /etc/fstab; done
   	  SHELL
 
       end
