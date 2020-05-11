@@ -1391,12 +1391,172 @@ Writing superblocks and filesystem accounting information: done
 
 
 
+Добавим в vagrantfile строчки по автоподнятию рейда:
+
+после строчки:   yum install -y mdadm smartmontools hdparm gdisk mc
+добавим
+```
+mdadm --zero-superblock --force /dev/sd{b,c,d,e,f}
+          mdadm --create --verbose --force /dev/md0 -l 5 -n 5 /dev/sd{b,c,d,e,f}
+          mkdir /etc/mdadm
+          echo "DEVICE partitions" > /etc/mdadm/mdadm.conf
+          mdadm --detail --scan --verbose | awk '/ARRAY/ {print}' >> /etc/mdadm/mdadm.conf
+          parted -s /dev/md0 mklabel gpt
+          parted /dev/md0 mkpart primary ext4 0% 20%
+          parted /dev/md0 mkpart primary ext4 20% 40%
+          parted /dev/md0 mkpart primary ext4 40% 60%
+          parted /dev/md0 mkpart primary ext4 60% 80%
+          parted /dev/md0 mkpart primary ext4 80% 100%
+          for i in $(seq 1 5); do mkfs.ext4 /dev/md0p$i; done
+          mkdir -p /raid/part{1,2,3,4,5}
+          for i in $(seq 1 5); do mount /dev/md0p$i /raid/part$i; done
+          echo "#RAID DEVICE" >> /etc/fstab
+          for i in $(seq 1 5); do echo `sudo blkid /dev/md0p$i | awk '{print $2}'` /u0$i ext4 defaults 0 0 >> /etc/fstab; done
+```
+
+ДЗ вернули с ошибкой:
+
+Здравствуйте, стенд поднимается, массив собирается. После перезагрузки стенда вот такая картина:
+
+[root@otuslinux ~]# lsblk
+```
+NAME      MAJ:MIN RM  SIZE RO TYPE  MOUNTPOINT
+sda         8:0    0   40G  0 disk
+└─sda1      8:1    0   40G  0 part  /
+sdb         8:16   0  1.5G  0 disk
+└─md0       9:0    0  5.9G  0 raid5
+  ├─md0p1 259:0    0  1.2G  0 md    /raid/part1
+  ├─md0p2 259:1    0  1.2G  0 md    /raid/part2
+  ├─md0p3 259:2    0  1.2G  0 md    /raid/part3
+  ├─md0p4 259:3    0  1.2G  0 md    /raid/part4
+  └─md0p5 259:4    0  1.2G  0 md    /raid/part5
+sdc         8:32   0  1.5G  0 disk
+└─md0       9:0    0  5.9G  0 raid5
+  ├─md0p1 259:0    0  1.2G  0 md    /raid/part1
+  ├─md0p2 259:1    0  1.2G  0 md    /raid/part2
+  ├─md0p3 259:2    0  1.2G  0 md    /raid/part3
+  ├─md0p4 259:3    0  1.2G  0 md    /raid/part4
+  └─md0p5 259:4    0  1.2G  0 md    /raid/part5
+sdd         8:48   0  1.5G  0 disk
+└─md0       9:0    0  5.9G  0 raid5
+  ├─md0p1 259:0    0  1.2G  0 md    /raid/part1
+  ├─md0p2 259:1    0  1.2G  0 md    /raid/part2
+  ├─md0p3 259:2    0  1.2G  0 md    /raid/part3
+  ├─md0p4 259:3    0  1.2G  0 md    /raid/part4
+  └─md0p5 259:4    0  1.2G  0 md    /raid/part5
+sde         8:64   0  1.5G  0 disk
+└─md0       9:0    0  5.9G  0 raid5
+  ├─md0p1 259:0    0  1.2G  0 md    /raid/part1
+  ├─md0p2 259:1    0  1.2G  0 md    /raid/part2
+  ├─md0p3 259:2    0  1.2G  0 md    /raid/part3
+  ├─md0p4 259:3    0  1.2G  0 md    /raid/part4
+  └─md0p5 259:4    0  1.2G  0 md    /raid/part5
+sdf         8:80   0  1.5G  0 disk
+└─md0       9:0    0  5.9G  0 raid5
+  ├─md0p1 259:0    0  1.2G  0 md    /raid/part1
+  ├─md0p2 259:1    0  1.2G  0 md    /raid/part2
+  ├─md0p3 259:2    0  1.2G  0 md    /raid/part3
+  ├─md0p4 259:3    0  1.2G  0 md    /raid/part4
+  └─md0p5 259:4    0  1.2G  0 md    /raid/part5
+```
+
+[vagrant@otuslinux ~]$ sudo -i
+[root@otuslinux ~]# reboot now
+```
+Connection to 127.0.0.1 closed by remote host.
+Connection to 127.0.0.1 closed.
+shaad@shaad-mobile:~/Teach/otus-linux$ vssh
+Last login: Mon May 11 13:47:24 2020 from 10.0.2.2
+```
+
+[root@otuslinux ~]# lsblk
+```
+NAME      MAJ:MIN RM  SIZE RO TYPE  MOUNTPOINT
+sda         8:0    0   40G  0 disk
+└─sda1      8:1    0   40G  0 part  /
+sdb         8:16   0  1.5G  0 disk
+└─md0       9:0    0  5.9G  0 raid5
+  ├─md0p1 259:0    0  1.2G  0 md    /u01
+  ├─md0p2 259:1    0  1.2G  0 md    /u02
+  ├─md0p3 259:2    0  1.2G  0 md    /u03
+  ├─md0p4 259:3    0  1.2G  0 md    /u04
+  └─md0p5 259:4    0  1.2G  0 md    /u05
+sdc         8:32   0  1.5G  0 disk
+└─md0       9:0    0  5.9G  0 raid5
+  ├─md0p1 259:0    0  1.2G  0 md    /u01
+  ├─md0p2 259:1    0  1.2G  0 md    /u02
+  ├─md0p3 259:2    0  1.2G  0 md    /u03
+  ├─md0p4 259:3    0  1.2G  0 md    /u04
+  └─md0p5 259:4    0  1.2G  0 md    /u05
+sdd         8:48   0  1.5G  0 disk
+└─md0       9:0    0  5.9G  0 raid5
+  ├─md0p1 259:0    0  1.2G  0 md    /u01
+  ├─md0p2 259:1    0  1.2G  0 md    /u02
+  ├─md0p3 259:2    0  1.2G  0 md    /u03
+  ├─md0p4 259:3    0  1.2G  0 md    /u04
+  └─md0p5 259:4    0  1.2G  0 md    /u05
+sde         8:64   0  1.5G  0 disk
+└─md0       9:0    0  5.9G  0 raid5
+  ├─md0p1 259:0    0  1.2G  0 md    /u01
+  ├─md0p2 259:1    0  1.2G  0 md    /u02
+  ├─md0p3 259:2    0  1.2G  0 md    /u03
+  ├─md0p4 259:3    0  1.2G  0 md    /u04
+  └─md0p5 259:4    0  1.2G  0 md    /u05
+sdf         8:80   0  1.5G  0 disk
+└─md0       9:0    0  5.9G  0 raid5
+  ├─md0p1 259:0    0  1.2G  0 md    /u01
+  ├─md0p2 259:1    0  1.2G  0 md    /u02
+  ├─md0p3 259:2    0  1.2G  0 md    /u03
+  ├─md0p4 259:3    0  1.2G  0 md    /u04
+  └─md0p5 259:4    0  1.2G  0 md    /u05
+```
 
 
+Исправил в vagrantfile строчку: for i in $(seq 1 5); do echo `sudo blkid /dev/md0p$i | awk '{print $2}'` /raid/part$i ext4 defaults 0 0 >> /etc/fstab; done
 
+теперь после ребута тоже так:
 
-
-
+[root@otuslinux ~]# lsblk
+```
+NAME      MAJ:MIN RM  SIZE RO TYPE  MOUNTPOINT
+sda         8:0    0   40G  0 disk
+└─sda1      8:1    0   40G  0 part  /
+sdb         8:16   0  1.5G  0 disk
+└─md0       9:0    0  5.9G  0 raid5
+  ├─md0p1 259:0    0  1.2G  0 md    /raid/part1
+  ├─md0p2 259:1    0  1.2G  0 md    /raid/part2
+  ├─md0p3 259:2    0  1.2G  0 md    /raid/part3
+  ├─md0p4 259:3    0  1.2G  0 md    /raid/part4
+  └─md0p5 259:4    0  1.2G  0 md    /raid/part5
+sdc         8:32   0  1.5G  0 disk
+└─md0       9:0    0  5.9G  0 raid5
+  ├─md0p1 259:0    0  1.2G  0 md    /raid/part1
+  ├─md0p2 259:1    0  1.2G  0 md    /raid/part2
+  ├─md0p3 259:2    0  1.2G  0 md    /raid/part3
+  ├─md0p4 259:3    0  1.2G  0 md    /raid/part4
+  └─md0p5 259:4    0  1.2G  0 md    /raid/part5
+sdd         8:48   0  1.5G  0 disk
+└─md0       9:0    0  5.9G  0 raid5
+  ├─md0p1 259:0    0  1.2G  0 md    /raid/part1
+  ├─md0p2 259:1    0  1.2G  0 md    /raid/part2
+  ├─md0p3 259:2    0  1.2G  0 md    /raid/part3
+  ├─md0p4 259:3    0  1.2G  0 md    /raid/part4
+  └─md0p5 259:4    0  1.2G  0 md    /raid/part5
+sde         8:64   0  1.5G  0 disk
+└─md0       9:0    0  5.9G  0 raid5
+  ├─md0p1 259:0    0  1.2G  0 md    /raid/part1
+  ├─md0p2 259:1    0  1.2G  0 md    /raid/part2
+  ├─md0p3 259:2    0  1.2G  0 md    /raid/part3
+  ├─md0p4 259:3    0  1.2G  0 md    /raid/part4
+  └─md0p5 259:4    0  1.2G  0 md    /raid/part5
+sdf         8:80   0  1.5G  0 disk
+└─md0       9:0    0  5.9G  0 raid5
+  ├─md0p1 259:0    0  1.2G  0 md    /raid/part1
+  ├─md0p2 259:1    0  1.2G  0 md    /raid/part2
+  ├─md0p3 259:2    0  1.2G  0 md    /raid/part3
+  ├─md0p4 259:3    0  1.2G  0 md    /raid/part4
+  └─md0p5 259:4    0  1.2G  0 md    /raid/part5
+```
 
 
 
